@@ -1,2 +1,9 @@
 @import "tailwindcss";
+
+@theme {
+  --animate-*: initial;
+}
+
+/* v4-এর জন্য নিখুঁত ডার্ক মোড ভেরিয়েন্ট */
+@custom-variant dark (&:where(.dark, .dark *));
 @plugin "daisyui";
