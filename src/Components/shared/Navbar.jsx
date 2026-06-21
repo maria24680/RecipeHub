@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { UtensilsCrossed, Sun, Moon } from 'lucide-react'; // Dynamic components auto handling
 
 export default function Navbar({ user, onLogout }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,6 +30,7 @@ export default function Navbar({ user, onLogout }) {
       document.documentElement.classList.add('dark');
       localStorage.setItem('recipehub-theme', 'dark');
     } else {
+      document.documentElement.classList.remove('light'); // Guard clean check
       document.documentElement.classList.remove('dark');
       localStorage.setItem('recipehub-theme', 'light');
     }
@@ -44,12 +46,19 @@ export default function Navbar({ user, onLogout }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           
+          {/* Brand Logo Wrapper */}
           <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="font-extrabold text-2xl tracking-wide text-black dark:text-white transition-colors">
-              Recipe<span className="text-[#F5726B]">Hub</span>
+            <Link href="/" className="flex items-center gap-2 group">
+              <div className="p-2 bg-[#F5726B]/10 rounded-xl text-[#F5726B] group-hover:bg-[#F5726B] group-hover:text-white transition-all duration-300">
+                <UtensilsCrossed size={20} className="shrink-0" />
+              </div>
+              <h2 className="text-2xl font-extrabold tracking-wide text-black dark:text-white transition-colors">
+                Recipe<span className="text-[#F5726B]">Hub</span>
+              </h2>
             </Link>
           </div>
 
+          {/* Desktop Navigation Links */}
           <div className="hidden md:flex space-x-8 items-center">
             {navLinks.map((link) => (
               <Link
@@ -79,13 +88,14 @@ export default function Navbar({ user, onLogout }) {
             )}
           </div>
 
+          {/* Desktop Actions */}
           <div className="hidden md:flex space-x-4 items-center">
             <button
               onClick={handleThemeToggle}
-              className="p-2 rounded-full border border-[#DFD0BD] hover:bg-[#DFD0BD]/20 transition-colors text-gray-700 dark:text-gray-200"
+              className="p-2 rounded-full border border-[#DFD0BD] dark:border-zinc-800 hover:bg-[#DFD0BD]/20 dark:hover:bg-zinc-900 transition-colors text-gray-700 dark:text-gray-200"
               title="Toggle Theme"
             >
-              {isDark ? '☀️' : '🌙'}
+              {isDark ? <Sun size={18} className="text-yellow-500" /> : <Moon size={18} />}
             </button>
 
             {user ? (
@@ -94,6 +104,8 @@ export default function Navbar({ user, onLogout }) {
                   <Image
                     src={user?.image || 'https://via.placeholder.com/150'}
                     alt="Profile"
+                    width={32}
+                    height={32}
                     className="w-8 h-8 rounded-full border border-[#AE514B] object-cover"
                   />
                   {user?.isPremium && (
@@ -127,12 +139,13 @@ export default function Navbar({ user, onLogout }) {
             )}
           </div>
 
+          {/* Mobile Actions Menu Trigger */}
           <div className="md:hidden flex items-center space-x-2">
             <button
               onClick={handleThemeToggle}
-              className="p-1.5 rounded-full border border-[#DFD0BD] text-sm text-gray-700 dark:text-gray-200"
+              className="p-2 rounded-full border border-[#DFD0BD] dark:border-zinc-800 text-gray-700 dark:text-gray-200"
             >
-              {isDark ? '☀️' : '🌙'}
+              {isDark ? <Sun size={16} className="text-yellow-500" /> : <Moon size={16} />}
             </button>
             <button
               onClick={() => setIsOpen(!isOpen)}
@@ -155,8 +168,9 @@ export default function Navbar({ user, onLogout }) {
         </div>
       </div>
 
+      {/* Mobile Dropdown Panel */}
       {isOpen && (
-        <div className="md:hidden bg-white dark:bg-zinc-950 border-b border-[#DFD0BD]">
+        <div className="md:hidden bg-white dark:bg-zinc-950 border-b border-[#DFD0BD] dark:border-zinc-800">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             {navLinks.map((link) => (
               <Link
@@ -187,13 +201,15 @@ export default function Navbar({ user, onLogout }) {
               </Link>
             )}
 
-            <div className="border-t border-[#DFD0BD] pt-4 pb-2 px-3">
+            <div className="border-t border-[#DFD0BD] dark:border-zinc-800 pt-4 pb-2 px-3">
               {user ? (
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <Image
                       src={user?.image || 'https://via.placeholder.com/150'}
                       alt="Profile"
+                      width={40}
+                      height={40}
                       className="w-10 h-10 rounded-full border border-[#AE514B]"
                     />
                     <div>
