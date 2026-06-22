@@ -158,7 +158,7 @@ export default function Register() {
             className="relative overflow-hidden w-full bg-[#F5726B] text-white py-4 rounded-xl font-bold shadow-lg shadow-[#F5726B]/10 hover:shadow-xl transition-all duration-300 group cursor-pointer active:scale-[0.99] disabled:opacity-50 mt-4"
           >
             <span className="relative z-10 flex items-center justify-center gap-2">
-              {loading ? "Creating Account..." : "Sign Up with Email"}
+              {loading ? "Creating Account..." : "Creating Account..."}
             </span>
             <span className="absolute inset-0 bg-[#AE514B] scale-x-0 group-hover:scale-x-100 transform origin-left transition-transform duration-300 ease-out" />
           </button>

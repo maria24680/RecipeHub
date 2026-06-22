@@ -1,255 +1,378 @@
-'use client';
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import Image from 'next/image';
-import { UtensilsCrossed, Sun, Moon } from 'lucide-react'; // Dynamic components auto handling
+"use client";
 
-export default function Navbar({ user, onLogout }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [isDark, setIsDark] = useState(false);
+import Link from "next/link";
+import React, { useState, useEffect, useRef } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import Image from "next/image";
+import { authClient } from "@/lib/auth-client";
+import { User, Settings, LogOut, Sun, Moon } from "lucide-react";
+
+export default function Navbar() {
+  const [session, setSession] = useState(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const router = useRouter();
   const pathname = usePathname();
+  const dropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
 
-  const isActive = (path) => pathname === path;
-
+  // Load session
   useEffect(() => {
-    const savedTheme = localStorage.getItem('recipehub-theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-      setIsDark(true);
-      document.documentElement.classList.add('dark');
-    } else {
-      setIsDark(false);
-      document.documentElement.classList.remove('dark');
+    const loadSession = async () => {
+      try {
+        const { data } = await authClient.getSession();
+        setSession(data || null);
+        // Cache session presence in localStorage for instant UI on refresh
+        if (data?.user) {
+          localStorage.setItem("session_user", JSON.stringify({
+            name: data.user.name,
+            email: data.user.email,
+            image: data.user.image,
+          }));
+        } else {
+          localStorage.removeItem("session_user");
+        }
+      } catch {
+        setSession(null);
+        localStorage.removeItem("session_user");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Instantly restore session UI from cache before async call completes
+    const cached = localStorage.getItem("session_user");
+    if (cached) {
+      try {
+        const user = JSON.parse(cached);
+        setSession({ user });
+      } catch {
+        localStorage.removeItem("session_user");
+      }
     }
+
+    setIsLoading(false); // Don't block UI — async call will update if needed
+    loadSession();
   }, []);
 
-  const handleThemeToggle = () => {
-    const nextDark = !isDark;
-    setIsDark(nextDark);
-    if (nextDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('recipehub-theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('light'); // Guard clean check
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('recipehub-theme', 'light');
+  // Load theme — just sync React state, the layout script already applied the class
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme");
+    setIsDarkMode(savedTheme === "dark");
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
+  // Toggle theme
+  const toggleTheme = () => {
+    const nextTheme = !isDarkMode;
+    setIsDarkMode(nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme);
+    localStorage.setItem("theme", nextTheme ? "dark" : "light");
+  };
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await authClient.signOut();
+      setSession(null);
+      localStorage.removeItem("session_user");
+      setIsDropdownOpen(false);
+      setIsMobileMenuOpen(false);
+      router.push("/login");
+      router.refresh();
+    } catch (error) {
+      console.error("Logout failed:", error);
     }
   };
 
-  const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Browse Recipes', path: '/browse' },
+  const isActive = (path) => {
+    return pathname === path
+      ? "text-[#F5726B] font-semibold md:border-b-2 md:border-[#F5726B] md:pb-1"
+      : "text-gray-700 dark:text-gray-200 hover:text-[#F5726B] dark:hover:text-[#F5726B] transition-colors duration-200";
+  };
+
+  const publicLinks = [
+    { name: "Home", path: "/" },
+    { name: "Browse Recipes", path: "/browse" },
   ];
 
-  return (
-    <nav className="bg-white dark:bg-zinc-950 border-b border-[#DFD0BD]/60 dark:border-zinc-800 sticky top-0 z-50 transition-colors duration-300">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16 items-center">
-          
-          {/* Brand Logo Wrapper */}
-          <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="p-2 bg-[#F5726B]/10 rounded-xl text-[#F5726B] group-hover:bg-[#F5726B] group-hover:text-white transition-all duration-300">
-                <UtensilsCrossed size={20} className="shrink-0" />
-              </div>
-              <h2 className="text-2xl font-extrabold tracking-wide text-black dark:text-white transition-colors">
-                Recipe<span className="text-[#F5726B]">Hub</span>
-              </h2>
-            </Link>
-          </div>
+  const authLinks = [{ name: "Dashboard", path: "/dashboard" }];
 
-          {/* Desktop Navigation Links */}
-          <div className="hidden md:flex space-x-8 items-center">
-            {navLinks.map((link) => (
+  const handleMobileLinkClick = () => {
+    setIsMobileMenuOpen(false);
+  };
+
+  return (
+    <nav className="bg-white dark:bg-zinc-950 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-50 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo */}
+          <Link
+            href="/"
+            className="text-2xl font-bold text-[#F5726B] hover:opacity-80 transition-opacity flex-shrink-0"
+          >
+            RecipeHub
+          </Link>
+
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex md:items-center md:gap-6">
+            {publicLinks.map((link) => (
               <Link
                 key={link.path}
                 href={link.path}
-                className={`font-medium transition-colors ${
-                  isActive(link.path)
-                    ? 'text-[#F5726B] border-b-2 border-[#F5726B]'
-                    : 'text-gray-700 dark:text-gray-200 hover:text-[#AE514B]'
-                } pb-1`}
+                className={`${isActive(link.path)} transition-all duration-200`}
               >
                 {link.name}
               </Link>
             ))}
 
-            {user && (
-              <Link
-                href="/dashboard"
-                className={`font-medium transition-colors ${
-                  isActive('/dashboard')
-                    ? 'text-[#F5726B] border-b-2 border-[#F5726B]'
-                    : 'text-gray-700 dark:text-gray-200 hover:text-[#AE514B]'
-                } pb-1`}
-              >
-                Dashboard
-              </Link>
-            )}
+            {session?.user &&
+              authLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  className={`${isActive(link.path)} transition-all duration-200`}
+                >
+                  {link.name}
+                </Link>
+              ))}
           </div>
 
-          {/* Desktop Actions */}
-          <div className="hidden md:flex space-x-4 items-center">
+          {/* Right Side */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Theme Toggle */}
             <button
-              onClick={handleThemeToggle}
-              className="p-2 rounded-full border border-[#DFD0BD] dark:border-zinc-800 hover:bg-[#DFD0BD]/20 dark:hover:bg-zinc-900 transition-colors text-gray-700 dark:text-gray-200"
-              title="Toggle Theme"
+              onClick={toggleTheme}
+              className="p-2 rounded-full border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900 transition-all duration-200 flex-shrink-0"
+              aria-label="Toggle theme"
             >
-              {isDark ? <Sun size={18} className="text-yellow-500" /> : <Moon size={18} />}
+              {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {user ? (
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <Image
-                    src={user?.image || 'https://via.placeholder.com/150'}
-                    alt="Profile"
-                    width={32}
-                    height={32}
-                    className="w-8 h-8 rounded-full border border-[#AE514B] object-cover"
-                  />
-                  {user?.isPremium && (
-                    <span className="bg-[#F5726B] text-white text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">
-                      PRO
-                    </span>
-                  )}
-                </div>
+            {/* User Section */}
+            {session?.user ? (
+              <div className="relative" ref={dropdownRef}>
+                {/* Avatar */}
                 <button
-                  onClick={onLogout}
-                  className="bg-[#AE514B] text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-opacity-90 transition shadow-sm"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="focus:outline-none focus:ring-2 focus:ring-[#F5726B] rounded-full transition-shadow"
+                  aria-label="User menu"
                 >
-                  Logout
+                  <Image
+                    src={session.user.image || "https://placehold.co/100"}
+                    alt={session.user.name || "User"}
+                    width={36}
+                    height={36}
+                    className="rounded-full border-2 border-gray-200 dark:border-zinc-800 object-cover hover:border-[#F5726B] transition-colors duration-200"
+                  />
                 </button>
+
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 shadow-xl rounded-lg overflow-hidden text-gray-700 dark:text-gray-200 animate-fadeIn">
+                    <div className="px-4 py-3 border-b border-gray-200 dark:border-zinc-800">
+                      <p className="font-semibold text-sm truncate">
+                        {session.user.name || "User"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                        {session.user.email}
+                      </p>
+                    </div>
+
+                    <Link
+                      href="/profile"
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors duration-200"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <User size={16} className="flex-shrink-0" />
+                      <span>Profile</span>
+                    </Link>
+
+                    <Link
+                      href="/dashboard"
+                      className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors duration-200"
+                      onClick={() => setIsDropdownOpen(false)}
+                    >
+                      <Settings size={16} className="flex-shrink-0" />
+                      <span>Dashboard</span>
+                    </Link>
+
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors duration-200 border-t border-gray-200 dark:border-zinc-800"
+                    >
+                      <LogOut size={16} className="flex-shrink-0" />
+                      <span>Logout</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            ) : (
-              <>
+            ) : !isLoading ? (
+              <div className="hidden md:flex items-center gap-3">
                 <Link
                   href="/login"
-                  className="text-gray-700 dark:text-gray-200 hover:text-[#AE514B] font-medium text-sm transition"
+                  className="text-gray-700 dark:text-gray-200 hover:text-[#F5726B] dark:hover:text-[#F5726B] transition-colors duration-200 px-3 py-2"
                 >
                   Login
                 </Link>
                 <Link
                   href="/register"
-                  className="bg-[#F5726B] text-white px-4 py-2 rounded-md font-medium text-sm hover:bg-opacity-90 transition shadow-sm"
+                  className="bg-[#F5726B] hover:bg-[#e05f59] text-white px-4 py-2 rounded-md transition-all duration-200 hover:shadow-lg hover:scale-105"
                 >
                   Register
                 </Link>
-              </>
+              </div>
+            ) : (
+              // Slim placeholder so layout doesn't shift while verifying
+              <div className="w-[120px] h-8 hidden md:block" />
             )}
-          </div>
 
-          {/* Mobile Actions Menu Trigger */}
-          <div className="md:hidden flex items-center space-x-2">
+            {/* Mobile Menu Toggle */}
             <button
-              onClick={handleThemeToggle}
-              className="p-2 rounded-full border border-[#DFD0BD] dark:border-zinc-800 text-gray-700 dark:text-gray-200"
+              className="md:hidden p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-md transition-colors duration-200"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle mobile menu"
             >
-              {isDark ? <Sun size={16} className="text-yellow-500" /> : <Moon size={16} />}
-            </button>
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-700 dark:text-gray-200 hover:text-[#AE514B] focus:outline-none"
-            >
-              <svg
-                className="h-6 w-6"
-                stroke="currentColor"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                {isOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
+              {isMobileMenuOpen ? (
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* Mobile Dropdown Panel */}
-      {isOpen && (
-        <div className="md:hidden bg-white dark:bg-zinc-950 border-b border-[#DFD0BD] dark:border-zinc-800">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                href={link.path}
-                onClick={() => setIsOpen(false)}
-                className={`block px-3 py-2 rounded-md font-medium ${
-                  isActive(link.path)
-                    ? 'bg-[#DFD0BD]/30 text-[#F5726B]'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900'
-                }`}
-              >
-                {link.name}
-              </Link>
-            ))}
-            
-            {user && (
-              <Link
-                href="/dashboard"
-                onClick={() => setIsOpen(false)}
-                className={`block px-3 py-2 rounded-md font-medium ${
-                  isActive('/dashboard')
-                    ? 'bg-[#DFD0BD]/30 text-[#F5726B]'
-                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900'
-                }`}
-              >
-                Dashboard
-              </Link>
-            )}
+        {/* Mobile Navigation */}
+        {isMobileMenuOpen && (
+          <div
+            ref={mobileMenuRef}
+            className="md:hidden py-4 border-t border-gray-200 dark:border-zinc-800 animate-slideDown"
+          >
+            <div className="flex flex-col space-y-3">
+              {publicLinks.map((link) => (
+                <Link
+                  key={link.path}
+                  href={link.path}
+                  className={`py-2 ${isActive(link.path)} transition-colors duration-200`}
+                  onClick={handleMobileLinkClick}
+                >
+                  {link.name}
+                </Link>
+              ))}
 
-            <div className="border-t border-[#DFD0BD] dark:border-zinc-800 pt-4 pb-2 px-3">
-              {user ? (
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Image
-                      src={user?.image || 'https://via.placeholder.com/150'}
-                      alt="Profile"
-                      width={40}
-                      height={40}
-                      className="w-10 h-10 rounded-full border border-[#AE514B]"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-gray-800 dark:text-white">{user?.name}</p>
-                      {user?.isPremium && (
-                        <span className="bg-[#F5726B] text-white text-[9px] uppercase font-bold px-1.5 py-0.5 rounded">
-                          Premium User
-                        </span>
-                      )}
-                    </div>
-                  </div>
+              {session?.user ? (
+                <>
+                  {authLinks.map((link) => (
+                    <Link
+                      key={link.path}
+                      href={link.path}
+                      className={`py-2 ${isActive(link.path)} transition-colors duration-200`}
+                      onClick={handleMobileLinkClick}
+                    >
+                      {link.name}
+                    </Link>
+                  ))}
                   <button
-                    onClick={() => { onLogout(); setIsOpen(false); }}
-                    className="bg-[#AE514B] text-white px-3 py-1.5 rounded-md text-sm font-medium"
+                    onClick={handleLogout}
+                    className="py-2 text-red-500 font-semibold text-left hover:text-red-600 transition-colors duration-200"
                   >
                     Logout
                   </button>
-                </div>
-              ) : (
-                <div className="flex flex-col space-y-2">
+                </>
+              ) : !isLoading ? (
+                <>
                   <Link
                     href="/login"
-                    onClick={() => setIsOpen(false)}
-                    className="text-center w-full block border border-[#AE514B] text-[#AE514B] px-4 py-2 rounded-md font-medium text-sm"
+                    className="py-2 text-gray-700 dark:text-gray-200 hover:text-[#F5726B] transition-colors duration-200"
+                    onClick={handleMobileLinkClick}
                   >
                     Login
                   </Link>
                   <Link
                     href="/register"
-                    onClick={() => setIsOpen(false)}
-                    className="text-center w-full block bg-[#F5726B] text-white px-4 py-2 rounded-md font-medium text-sm"
+                    className="bg-[#F5726B] hover:bg-[#e05f59] text-white px-4 py-2.5 rounded-md inline-block text-center transition-all duration-200"
+                    onClick={handleMobileLinkClick}
                   >
                     Register
                   </Link>
-                </div>
-              )}
+                </>
+              ) : null}
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Animation Styles */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .animate-fadeIn {
+          animation: fadeIn 0.2s ease-out;
+        }
+
+        .animate-slideDown {
+          animation: slideDown 0.2s ease-out;
+        }
+      `}</style>
     </nav>
   );
 }
