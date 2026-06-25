@@ -102,9 +102,10 @@ export default function Navbar() {
       : "text-gray-700 dark:text-gray-200 hover:text-[#F5726B] dark:hover:text-[#F5726B] transition-colors duration-200";
   };
 
+  // ✅ Updated public links – Browse Recipes now points to /recipes
   const publicLinks = [
     { name: "Home", path: "/" },
-    { name: "Browse Recipes", path: "/browse" },
+    { name: "Browse Recipes", path: "/recipes" },
   ];
 
   const authLinks = [{ name: "Dashboard", path: "/dashboard" }];
@@ -125,7 +126,7 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden md:flex md:items-center md:gap-6">
-            ={publicLinks.map((link) => (
+            {publicLinks.map((link) => (
               <Link
                 key={link.path}
                 href={link.path}
