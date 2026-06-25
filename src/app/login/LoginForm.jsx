@@ -4,9 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { authClient } from "@/lib/auth-client";
+import { FcGoogle } from "react-icons/fc";
+import toast from "react-hot-toast";
+import { signIn } from "@/lib/auth-client";
 
-export default function LoginPage() {
+export default function LoginForm({ redirectTo = "/dashboard" }) {
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -14,32 +16,51 @@ export default function LoginPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError("");
+
+    if (!email || !password) {
+      toast.error("Please fill in all fields.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await authClient.signIn.email({
+      const { error } = await signIn.email({
         email,
         password,
-        callbackURL: "/",
+        callbackURL: redirectTo,
       });
 
-      if (result?.error) {
-        setError(result.error.message || "Login failed");
+      if (error) {
+        toast.error(error.message || "Invalid email or password.");
         return;
       }
 
-      router.push("/");
+      toast.success("Welcome back! 🎉");
+      router.push(redirectTo);
       router.refresh();
     } catch (err) {
       console.error(err);
-      setError("Invalid email or password");
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setIsGoogleLoading(true);
+    try {
+      await signIn.social({
+        provider: "google",
+        callbackURL: redirectTo,
+      });
+    } catch (err) {
+      toast.error("Google sign-in failed. Please try again.");
+      setIsGoogleLoading(false);
     }
   };
 
@@ -50,35 +71,20 @@ export default function LoginPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-white rounded-3xl border border-gray-200 shadow-xl p-8"
       >
-        {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-black text-gray-900">
-            Welcome Back to{" "}
-            <span className="text-[#F5726B]">
-              RecipeHub
-            </span>
+            Welcome Back <span className="text-[#F5726B]">RecipeHub</span>
           </h1>
-
           <p className="mt-2 text-gray-600">
-            Sign in to access your recipes and dashboard.
+            Sign in to your account to continue sharing recipes.
           </p>
         </div>
 
-        {/* Error */}
-        {error && (
-          <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-3 text-sm font-medium text-red-600">
-            {error}
-          </div>
-        )}
-
-        {/* Form */}
         <form onSubmit={handleLogin} className="space-y-5">
-          {/* Email */}
           <div>
             <label className="block mb-2 text-sm font-semibold text-gray-700">
               Email
             </label>
-
             <input
               type="email"
               required
@@ -89,12 +95,10 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Password */}
           <div>
             <label className="block mb-2 text-sm font-semibold text-gray-700">
               Password
             </label>
-
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -104,44 +108,47 @@ export default function LoginPage() {
                 placeholder="Enter password"
                 className="w-full px-4 py-3 pr-20 rounded-xl border border-gray-300 bg-white text-gray-900 placeholder:text-gray-500 focus:outline-none focus:border-[#F5726B]"
               />
-
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#F5726B]"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-[#F5726B] cursor-pointer"
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
           </div>
 
-          {/* Forgot Password */}
-          <div className="flex justify-end">
-            <Link
-              href="/forgot-password"
-              className="text-sm text-[#F5726B] hover:underline"
-            >
-              Forgot Password?
-            </Link>
-          </div>
-
-          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 rounded-xl bg-[#F5726B] text-white font-bold hover:bg-[#e85f58] transition-all disabled:opacity-50"
+            className="w-full py-3 rounded-xl bg-[#F5726B] text-white font-bold hover:bg-[#e85f58] transition-all disabled:opacity-50 cursor-pointer"
           >
             {loading ? "Signing In..." : "Sign In"}
           </button>
         </form>
 
-        {/* Footer */}
+        <div className="flex items-center gap-3 my-5">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-gray-400 text-xs">Or continue with</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <button
+          onClick={handleGoogleSignIn}
+          disabled={isGoogleLoading}
+          className="w-full py-3 rounded-xl bg-gray-50 border border-gray-200 hover:bg-gray-100 text-gray-900 text-sm font-semibold flex items-center justify-center gap-3 transition-all disabled:opacity-60 cursor-pointer"
+        >
+          {isGoogleLoading ? (
+            <div className="w-4 h-4 border-2 border-gray-400 border-t-gray-700 rounded-full animate-spin" />
+          ) : (
+            <FcGoogle className="w-5 h-5" />
+          )}
+          Continue with Google
+        </button>
+
         <p className="text-center mt-6 text-sm text-gray-600">
-          Dont have an account?
-          <Link
-            href="/register"
-            className="ml-1 text-[#F5726B] font-semibold hover:underline"
-          >
+          Don&apos;t have an account?
+          <Link href="/auth/signup" className="ml-1 text-[#F5726B] font-semibold hover:underline">
             Register
           </Link>
         </p>
