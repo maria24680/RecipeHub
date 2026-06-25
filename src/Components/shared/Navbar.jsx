@@ -19,13 +19,11 @@ export default function Navbar() {
   const dropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
 
-  // Load session
   useEffect(() => {
     const loadSession = async () => {
       try {
         const { data } = await authClient.getSession();
         setSession(data || null);
-        // Cache session presence in localStorage for instant UI on refresh
         if (data?.user) {
           localStorage.setItem("session_user", JSON.stringify({
             name: data.user.name,
@@ -43,7 +41,6 @@ export default function Navbar() {
       }
     };
 
-    // Instantly restore session UI from cache before async call completes
     const cached = localStorage.getItem("session_user");
     if (cached) {
       try {
@@ -54,17 +51,15 @@ export default function Navbar() {
       }
     }
 
-    setIsLoading(false); // Don't block UI — async call will update if needed
+    setIsLoading(false);
     loadSession();
   }, []);
 
-  // Load theme — just sync React state, the layout script already applied the class
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
     setIsDarkMode(savedTheme === "dark");
   }, []);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -76,12 +71,10 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
 
-  // Toggle theme
   const toggleTheme = () => {
     const nextTheme = !isDarkMode;
     setIsDarkMode(nextTheme);
@@ -89,7 +82,6 @@ export default function Navbar() {
     localStorage.setItem("theme", nextTheme ? "dark" : "light");
   };
 
-  // Handle logout
   const handleLogout = async () => {
     try {
       await authClient.signOut();
@@ -125,7 +117,6 @@ export default function Navbar() {
     <nav className="bg-white dark:bg-zinc-950 border-b border-gray-200 dark:border-zinc-800 sticky top-0 z-50 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
           <Link
             href="/"
             className="text-2xl font-bold text-[#F5726B] hover:opacity-80 transition-opacity flex-shrink-0"
@@ -133,9 +124,8 @@ export default function Navbar() {
             RecipeHub
           </Link>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex md:items-center md:gap-6">
-            {publicLinks.map((link) => (
+            ={publicLinks.map((link) => (
               <Link
                 key={link.path}
                 href={link.path}
@@ -157,9 +147,7 @@ export default function Navbar() {
               ))}
           </div>
 
-          {/* Right Side */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Theme Toggle */}
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full border border-gray-200 dark:border-zinc-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900 transition-all duration-200 flex-shrink-0"
@@ -168,13 +156,11 @@ export default function Navbar() {
               {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
             </button>
 
-            {/* User Section */}
             {session?.user ? (
               <div className="relative" ref={dropdownRef}>
-                {/* Avatar */}
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="focus:outline-none focus:ring-2 focus:ring-[#F5726B] rounded-full transition-shadow"
+                  className="focus:outline-none focus:ring-2 focus:ring-[#F5726B] rounded-full transition-shadow cursor-pointer"
                   aria-label="User menu"
                 >
                   <Image
@@ -186,7 +172,6 @@ export default function Navbar() {
                   />
                 </button>
 
-                {/* Dropdown Menu */}
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 shadow-xl rounded-lg overflow-hidden text-gray-700 dark:text-gray-200 animate-fadeIn">
                     <div className="px-4 py-3 border-b border-gray-200 dark:border-zinc-800">
@@ -218,7 +203,7 @@ export default function Navbar() {
 
                     <button
                       onClick={handleLogout}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors duration-200 border-t border-gray-200 dark:border-zinc-800"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors duration-200 border-t border-gray-200 dark:border-zinc-800 cursor-pointer"
                     >
                       <LogOut size={16} className="flex-shrink-0" />
                       <span>Logout</span>
@@ -235,20 +220,18 @@ export default function Navbar() {
                   Login
                 </Link>
                 <Link
-                  href="/register"
+                  href="/auth/signup"
                   className="bg-[#F5726B] hover:bg-[#e05f59] text-white px-4 py-2 rounded-md transition-all duration-200 hover:shadow-lg hover:scale-105"
                 >
                   Register
                 </Link>
               </div>
             ) : (
-              // Slim placeholder so layout doesn't shift while verifying
               <div className="w-[120px] h-8 hidden md:block" />
             )}
 
-            {/* Mobile Menu Toggle */}
             <button
-              className="md:hidden p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-md transition-colors duration-200"
+              className="md:hidden p-2 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-zinc-900 rounded-md transition-colors duration-200 cursor-pointer"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
               aria-label="Toggle mobile menu"
             >
@@ -281,7 +264,6 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Mobile Navigation */}
         {isMobileMenuOpen && (
           <div
             ref={mobileMenuRef}
@@ -313,7 +295,7 @@ export default function Navbar() {
                   ))}
                   <button
                     onClick={handleLogout}
-                    className="py-2 text-red-500 font-semibold text-left hover:text-red-600 transition-colors duration-200"
+                    className="py-2 text-red-500 font-semibold text-left hover:text-red-600 transition-colors duration-200 cursor-pointer"
                   >
                     Logout
                   </button>
@@ -328,7 +310,7 @@ export default function Navbar() {
                     Login
                   </Link>
                   <Link
-                    href="/register"
+                    href="/auth/signup"
                     className="bg-[#F5726B] hover:bg-[#e05f59] text-white px-4 py-2.5 rounded-md inline-block text-center transition-all duration-200"
                     onClick={handleMobileLinkClick}
                   >
@@ -341,7 +323,6 @@ export default function Navbar() {
         )}
       </div>
 
-      {/* Animation Styles */}
       <style jsx>{`
         @keyframes fadeIn {
           from {
