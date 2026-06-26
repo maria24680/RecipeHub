@@ -4,197 +4,621 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    ChevronLeft, Clock, Flame, Users, Star, Layers, CheckCircle2, 
-    Play, X, AlertCircle, RefreshCcw, ChefHat 
+import {
+    Clock, User, Heart, Flag, ShoppingCart,
+    Crown, ChefHat, Utensils, ArrowLeft, X,
+    Loader2, Shield, CheckCircle,
 } from 'lucide-react';
+import { useSession, authClient } from '@/lib/auth-client';
+import toast from 'react-hot-toast';
 
-export default function RecipeDetailsClient({ recipe }) {
-    const [checkedIngredients, setCheckedIngredients] = useState({});
-    const [activeTimer, setActiveTimer] = useState(false);
-    const [secondsLeft, setSecondsLeft] = useState((recipe.cookTime || 15) * 60);
-    const [timerRunning, setTimerRunning] = useState(false);
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
+const SYNCED_KEY = 'recipehub_user_synced';
 
-    // Active Timer Side Effects
-    useEffect(() => {
-        let interval = null;
-        if (timerRunning && secondsLeft > 0) {
-            interval = setInterval(() => {
-                setSecondsLeft((prev) => prev - 1);
-            }, 1000);
-        } else if (secondsLeft === 0) {
-            setTimerRunning(false);
-            alert(`⏰ Time is up! Your "${recipe.title}" is ready!`);
+// ─── USER SYNC ────────────────────────────────────────────────
+async function syncUser(email, name, image) {
+    try {
+        const res = await fetch(`${BASE_URL}/api/auth/sync`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, name, image: image || 'https://placehold.co/100' }),
+        });
+        if (res.ok) {
+            localStorage.setItem(SYNCED_KEY, 'true');
+            console.log('✅ User synced to backend');
+            return true;
+        } else {
+            const text = await res.text();
+            console.error('Sync failed:', text);
+            return false;
         }
-        return () => clearInterval(interval);
-    }, [timerRunning, secondsLeft, recipe.title]);
+    } catch (err) {
+        console.error('Sync error:', err);
+        return false;
+    }
+}
 
-    const toggleIngredient = (idx) => {
-        setCheckedIngredients(prev => ({ ...prev, [idx]: !prev[idx] }));
-    };
+// ─── AUTH HELPER ──────────────────────────────────────────────
+async function getSessionEmail() {
+    const session = await authClient.getSession();
+    return session?.data?.user?.email || null;
+}
 
-    const formatTimer = (totalSeconds) => {
-        const hrs = Math.floor(totalSeconds / 3600);
-        const mins = Math.floor((totalSeconds % 3600) / 60);
-        const secs = totalSeconds % 60;
-        return `${hrs > 0 ? hrs + ':' : ''}${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+// ─── PURCHASE MODAL ────────────────────────────────────────────
+function PurchaseModal({ recipe, onClose }) {
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handlePurchase = async () => {
+        setIsLoading(true);
+        try {
+            const session = await authClient.getSession();
+            const token = session?.data?.session?.token;
+            if (!token) {
+                toast.error('Please sign in to purchase');
+                return;
+            }
+
+            const res = await fetch(`${BASE_URL}/api/payments/recipe-checkout`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ recipeId: recipe._id }),
+            });
+
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                toast.error(data.message || 'Payment initiation failed');
+            }
+        } catch (err) {
+            console.error('Purchase error:', err);
+            toast.error('Something went wrong');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117]">
-            
-            {/* Hero Image Block Banner */}
-            <div className="relative h-[40vh] md:h-[50vh] overflow-hidden">
-                <Image
-                    src={recipe.image || '/recipe-placeholder.jpg'}
-                    alt={recipe.title}
-                    fill
-                    className="object-cover"
-                    priority
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-gray-50 dark:from-[#0f1117] via-black/40 to-black/10" />
-                
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            onClick={onClose}
+        >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ duration: 0.2 }}
+                className="relative z-10 w-full max-w-md bg-white dark:bg-[#1a1d24] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="relative h-32 bg-gradient-to-r from-orange-500 to-amber-600 p-5 flex flex-col justify-end">
+                    <button
+                        onClick={onClose}
+                        className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center text-white transition-colors"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                    <h3 className="text-white font-bold text-lg">{recipe.recipeName}</h3>
+                    <p className="text-white/80 text-xs">Premium Recipe</p>
+                </div>
+
+                <div className="p-5 space-y-4">
+                    <div className="space-y-2 p-4 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-100 dark:border-gray-700">
+                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                            <span>Recipe Price</span>
+                            <span className="font-semibold text-gray-900 dark:text-gray-100">
+                                ${(recipe.price || 4.99).toFixed(2)}
+                            </span>
+                        </div>
+                        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                            <span>Platform fee (3%)</span>
+                            <span>${((recipe.price || 4.99) * 0.03).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-gray-900 dark:text-gray-100 pt-2 border-t border-gray-200 dark:border-gray-700">
+                            <span>Total</span>
+                            <span className="text-orange-600 dark:text-orange-400">
+                                ${((recipe.price || 4.99) * 1.03).toFixed(2)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handlePurchase}
+                        disabled={isLoading}
+                        className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                    >
+                        {isLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <>Purchase Now — ${((recipe.price || 4.99) * 1.03).toFixed(2)}</>
+                        )}
+                    </button>
+                    <p className="text-center text-xs text-gray-400 flex items-center justify-center gap-1">
+                        <Shield className="w-3 h-3" /> Secure payment via Stripe
+                    </p>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
+// ─── REPORT MODAL ──────────────────────────────────────────────
+function ReportModal({ recipeId, onClose }) {
+    const [reason, setReason] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const reasons = ['Spam', 'Offensive Content', 'Copyright Issue', 'Other'];
+
+    const handleReport = async () => {
+        if (!reason) {
+            toast.error('Please select a reason');
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const email = await getSessionEmail();
+            if (!email) {
+                toast.error('Please sign in to report');
+                return;
+            }
+
+            const res = await fetch(`${BASE_URL}/api/reports`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'user-email': email,
+                },
+                body: JSON.stringify({ recipeId, reason }),
+            });
+
+            if (res.ok) {
+                toast.success('Report submitted successfully');
+                onClose();
+            } else {
+                const data = await res.json();
+                toast.error(data.message || 'Failed to submit report');
+            }
+        } catch (err) {
+            console.error('Report error:', err);
+            toast.error(err.message || 'Something went wrong');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            onClick={onClose}
+        >
+            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="relative z-10 w-full max-w-md bg-white dark:bg-[#1a1d24] rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+            >
+                <div className="p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">Report Recipe</h3>
+                        <button
+                            onClick={onClose}
+                            className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                            <X className="w-5 h-5 text-gray-500" />
+                        </button>
+                    </div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Why are you reporting this recipe?</p>
+                    <div className="space-y-2">
+                        {reasons.map((r) => (
+                            <label
+                                key={r}
+                                className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-orange-300 dark:hover:border-orange-700 cursor-pointer transition-colors"
+                            >
+                                <input
+                                    type="radio"
+                                    name="reason"
+                                    value={r}
+                                    checked={reason === r}
+                                    onChange={(e) => setReason(e.target.value)}
+                                    className="w-4 h-4 text-orange-500 focus:ring-orange-500"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-300">{r}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <button
+                        onClick={handleReport}
+                        disabled={isLoading || !reason}
+                        className="w-full py-3 rounded-xl bg-red-500 text-white font-semibold text-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                    >
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit Report'}
+                    </button>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
+}
+
+// ─── MAIN CLIENT COMPONENT ────────────────────────────────────
+export default function RecipeDetailsClient({ recipe }) {
+    const { data: session, status } = useSession();
+    const user = session?.user;
+    const userEmail = user?.email;
+
+    const [likesCount, setLikesCount] = useState(recipe.likesCount || 0);
+    const [isLiked, setIsLiked] = useState(recipe.likedBy?.includes(userEmail) || false);
+    const [isFavorited, setIsFavorited] = useState(false);
+    const [isPurchased, setIsPurchased] = useState(false);
+    const [showPurchaseModal, setShowPurchaseModal] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [isLoadingAction, setIsLoadingAction] = useState(false);
+
+    // ── Sync user ──────────────────────────────────────────────
+    useEffect(() => {
+        if (status === 'authenticated' && userEmail) {
+            const synced = localStorage.getItem(SYNCED_KEY);
+            if (!synced) {
+                syncUser(userEmail, user?.name, user?.image);
+            }
+        }
+    }, [status, userEmail, user?.name, user?.image]);
+
+    // ── Fetch user data ────────────────────────────────────────
+    useEffect(() => {
+        if (status !== 'authenticated' || !userEmail) return;
+
+        const fetchData = async () => {
+            try {
+                // Fetch favorites
+                let favRes = await fetch(`${BASE_URL}/api/favorites`, {
+                    headers: { 'user-email': userEmail },
+                });
+                if (favRes.status === 401) {
+                    localStorage.removeItem(SYNCED_KEY);
+                    const synced = await syncUser(userEmail, user?.name, user?.image);
+                    if (synced) favRes = await fetch(`${BASE_URL}/api/favorites`, {
+                        headers: { 'user-email': userEmail },
+                    });
+                }
+                if (favRes.ok) {
+                    const favData = await favRes.json();
+                    if (Array.isArray(favData)) {
+                        setIsFavorited(favData.some((f) => f.recipeId === recipe._id));
+                    }
+                }
+
+                // Fetch purchases
+                let purRes = await fetch(`${BASE_URL}/api/purchases`, {
+                    headers: { 'user-email': userEmail },
+                });
+                if (purRes.status === 401) {
+                    localStorage.removeItem(SYNCED_KEY);
+                    const synced = await syncUser(userEmail, user?.name, user?.image);
+                    if (synced) purRes = await fetch(`${BASE_URL}/api/purchases`, {
+                        headers: { 'user-email': userEmail },
+                    });
+                }
+                if (purRes.ok) {
+                    const purData = await purRes.json();
+                    if (Array.isArray(purData)) {
+                        setIsPurchased(purData.some((p) => p.recipeId === recipe._id));
+                    }
+                }
+
+                // Check like status
+                if (recipe.likedBy?.includes(userEmail)) {
+                    setIsLiked(true);
+                }
+            } catch (err) {
+                console.error('Error fetching user data:', err);
+            }
+        };
+
+        fetchData();
+    }, [status, userEmail, recipe._id, recipe.likedBy, user?.name, user?.image]);
+
+    // ─── Handlers ──────────────────────────────────────────────
+
+    const handleLike = async () => {
+        if (!userEmail) {
+            toast.error('Please sign in to like');
+            return;
+        }
+        setIsLoadingAction(true);
+        try {
+            let res = await fetch(`${BASE_URL}/api/recipes/${recipe._id}/like`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'user-email': userEmail,
+                },
+            });
+            if (res.status === 401) {
+                localStorage.removeItem(SYNCED_KEY);
+                const synced = await syncUser(userEmail, user?.name, user?.image);
+                if (synced) {
+                    res = await fetch(`${BASE_URL}/api/recipes/${recipe._id}/like`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'user-email': userEmail,
+                        },
+                    });
+                }
+            }
+            const data = await res.json();
+            if (res.ok) {
+                setLikesCount(data.likesCount);
+                setIsLiked(data.liked);
+                toast.success(data.liked ? 'Liked!' : 'Unliked');
+            } else {
+                toast.error(data.message || 'Failed to like');
+            }
+        } catch (err) {
+            console.error('Like error:', err);
+            toast.error(err.message || 'Something went wrong');
+        } finally {
+            setIsLoadingAction(false);
+        }
+    };
+
+    const handleFavorite = async () => {
+        if (!userEmail) {
+            toast.error('Please sign in to favorite');
+            return;
+        }
+        setIsLoadingAction(true);
+        try {
+            const url = `${BASE_URL}/api/favorites${isFavorited ? `/${recipe._id}` : ''}`;
+            const method = isFavorited ? 'DELETE' : 'POST';
+            let res = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'user-email': userEmail,
+                },
+                body: isFavorited ? undefined : JSON.stringify({ recipeId: recipe._id }),
+            });
+            if (res.status === 401) {
+                localStorage.removeItem(SYNCED_KEY);
+                const synced = await syncUser(userEmail, user?.name, user?.image);
+                if (synced) {
+                    res = await fetch(url, {
+                        method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'user-email': userEmail,
+                        },
+                        body: isFavorited ? undefined : JSON.stringify({ recipeId: recipe._id }),
+                    });
+                }
+            }
+            const data = await res.json();
+            if (data.success) {
+                setIsFavorited(!isFavorited);
+                toast.success(isFavorited ? 'Removed from favorites' : 'Added to favorites');
+            } else {
+                toast.error(data.message || 'Failed to update favorites');
+            }
+        } catch (err) {
+            console.error('Favorite error:', err);
+            toast.error(err.message || 'Something went wrong');
+        } finally {
+            setIsLoadingAction(false);
+        }
+    };
+
+    const handleReport = () => {
+        if (!userEmail) {
+            toast.error('Please sign in to report');
+            return;
+        }
+        setShowReportModal(true);
+    };
+
+    const handlePurchase = () => {
+        if (!userEmail) {
+            toast.error('Please sign in to purchase');
+            return;
+        }
+        if (isPurchased) {
+            toast.success('You already purchased this recipe');
+            return;
+        }
+        setShowPurchaseModal(true);
+    };
+
+    return (
+        <div className="min-h-screen bg-gray-50 dark:bg-[#0f1117] pt-24 pb-16">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                 <Link
                     href="/recipes"
-                    className="absolute top-20 left-4 sm:left-8 flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white text-sm font-medium hover:bg-black/60 transition-all"
+                    className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors mb-6"
                 >
-                    <ChevronLeft className="w-4 h-4" /> Back to Recipes
+                    <ArrowLeft className="w-4 h-4" /> Back to recipes
                 </Link>
-            </div>
 
-            {/* Layout Main Container */}
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 -mt-20 pb-20 relative z-10">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    
-                    {/* Left Main Recipe Details Content Segment */}
+                    {/* Left column */}
                     <div className="lg:col-span-2 space-y-6">
-                        
-                        {/* Summary Header Card */}
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
-                            <span className="text-xs font-bold text-orange-500 uppercase tracking-widest">{recipe.category}</span>
-                            <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 dark:text-gray-100 mt-1 mb-3">{recipe.title}</h1>
-                            <p className="text-sm text-gray-400 mb-4">Recipe curated by <span className="text-gray-600 dark:text-gray-200 font-semibold">{recipe.authorName || recipe.vendorEmail}</span></p>
-                            
-                            <div className="grid grid-cols-4 gap-2 text-center border-t border-gray-100 dark:border-gray-800 pt-4">
-                                <div>
-                                    <p className="text-xs text-gray-400 mb-1">Prep Time</p>
-                                    <p className="font-bold text-gray-900 dark:text-gray-100 text-sm">{recipe.prepTime || 10}m</p>
+                        <div className="relative h-80 md:h-96 rounded-2xl overflow-hidden bg-gray-100 dark:bg-gray-800">
+                            <Image
+                                src={recipe.recipeImage || '/recipe-placeholder.jpg'}
+                                alt={recipe.recipeName}
+                                fill
+                                className="object-cover"
+                                priority
+                            />
+                            {recipe.isFeatured && (
+                                <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-yellow-500 text-white text-xs font-bold shadow-lg">
+                                    Featured
                                 </div>
-                                <div>
-                                    <p className="text-xs text-gray-400 mb-1">Cook Time</p>
-                                    <p className="font-bold text-gray-900 dark:text-gray-100 text-sm">{recipe.cookTime || 20}m</p>
+                            )}
+                            {recipe.isPremium && (
+                                <div className="absolute top-4 right-4 flex items-center gap-1 px-3 py-1 rounded-full bg-purple-600 text-white text-xs font-bold shadow-lg">
+                                    <Crown className="w-3 h-3" /> Premium
                                 </div>
-                                <div>
-                                    <p className="text-xs text-gray-400 mb-1">Servings</p>
-                                    <p className="font-bold text-gray-900 dark:text-gray-100 text-sm">{recipe.servings || 2} pax</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-400 mb-1">Calories</p>
-                                    <p className="font-bold text-orange-500 text-sm">{recipe.calories || 350} kcal</p>
-                                </div>
-                            </div>
-                        </motion.div>
+                            )}
+                        </div>
 
-                        {/* Interactive Checklist Ingredients Section */}
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                                <ChefHat className="w-5 h-5 text-orange-500" /> Ingredients Checklist
-                            </h2>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {recipe.ingredients?.map((ingredient, idx) => (
-                                    <div 
-                                        key={idx} 
-                                        onClick={() => toggleIngredient(idx)}
-                                        className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer select-none transition-all ${
-                                            checkedIngredients[idx] 
-                                                ? 'bg-orange-50/50 dark:bg-orange-950/10 border-orange-200 dark:border-orange-900/40 opacity-60' 
-                                                : 'bg-gray-50 dark:bg-gray-800/40 border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700'
-                                        }`}
-                                    >
-                                        <CheckCircle2 className={`w-4 h-4 shrink-0 transition-colors ${checkedIngredients[idx] ? 'text-orange-500 fill-orange-505' : 'text-gray-300 dark:text-gray-600'}`} />
-                                        <span className={`text-sm font-medium ${checkedIngredients[idx] ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-700 dark:text-gray-300'}`}>{ingredient}</span>
-                                    </div>
+                        <div>
+                            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                                {recipe.recipeName}
+                            </h1>
+                            <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                <span className="flex items-center gap-1">
+                                    <User className="w-4 h-4" /> {recipe.authorName || 'Anonymous'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Clock className="w-4 h-4" /> {recipe.preparationTime || 30} min
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <ChefHat className="w-4 h-4" /> {recipe.difficultyLevel || 'Medium'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Utensils className="w-4 h-4" />
+                                    {recipe.cuisineType || 'Various'} · {recipe.category || 'General'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Ingredients</h2>
+                            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {recipe.ingredients?.map((item, i) => (
+                                    <li key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                                        <span className="text-orange-500 mt-0.5">•</span>
+                                        {item}
+                                    </li>
                                 ))}
-                            </div>
-                        </motion.div>
+                            </ul>
+                        </div>
 
-                        {/* Step By Step Instructions Timeline */}
-                        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-5 flex items-center gap-2">
-                                <Layers className="w-5 h-5 text-orange-500" /> Preparation Instructions
-                            </h2>
-                            <div className="space-y-6 relative border-l-2 border-gray-100 dark:border-gray-800 ml-3 pl-5">
-                                {recipe.instructions?.map((step, idx) => (
-                                    <div key={idx} className="relative">
-                                        <div className="absolute -left-[29px] top-0 w-4 h-4 rounded-full bg-orange-500 border-4 border-white dark:border-[#1a1d24] shadow-sm" />
-                                        <span className="text-xs font-bold text-orange-500">STEP {idx + 1}</span>
-                                        <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mt-0.5 leading-relaxed">{step}</p>
-                                    </div>
+                        <div className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Instructions</h2>
+                            <ol className="space-y-4">
+                                {recipe.instructions?.map((step, i) => (
+                                    <li key={i} className="flex gap-3 text-sm text-gray-700 dark:text-gray-300">
+                                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white text-xs font-bold flex items-center justify-center">
+                                            {i + 1}
+                                        </span>
+                                        <span>{step}</span>
+                                    </li>
                                 ))}
-                            </div>
-                        </motion.div>
-
+                            </ol>
+                        </div>
                     </div>
 
-                    {/* Right Interactive Cooking Controls Sidebar */}
+                    {/* Right sidebar */}
                     <div className="space-y-6">
-                        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="bg-gradient-to-br from-orange-500 to-amber-500 rounded-2xl p-5 text-white shadow-lg shadow-orange-500/10 sticky top-24 text-center space-y-4">
-                            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center mx-auto">
-                                <Clock className="w-6 h-6 text-white" />
+                        <div className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm sticky top-24">
+                            <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
+                                <div className="flex items-center gap-2">
+                                    <Heart className="w-5 h-5 text-red-500" />
+                                    <span className="font-semibold text-gray-900 dark:text-gray-100">{likesCount}</span>
+                                    <span className="text-sm text-gray-500 dark:text-gray-400">likes</span>
+                                </div>
+                                <button
+                                    onClick={handleLike}
+                                    disabled={isLoadingAction}
+                                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isLiked
+                                            ? 'bg-red-500 text-white hover:bg-red-600'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    {isLoadingAction ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : isLiked ? (
+                                        'Liked'
+                                    ) : (
+                                        'Like'
+                                    )}
+                                </button>
                             </div>
-                            <div>
-                                <h3 className="font-bold text-lg">Interactive Kitchen Companion</h3>
-                                <p className="text-white/80 text-xs mt-1">Keep track of your cooking boundaries with our real-time visual companion helper.</p>
-                            </div>
-                            <button
-                                onClick={() => setActiveTimer(true)}
-                                className="w-full py-2.5 bg-white text-orange-600 font-bold text-sm rounded-xl shadow-md hover:bg-orange-50 transition-all flex items-center justify-center gap-2"
-                            >
-                                <Play className="w-4 h-4 fill-orange-600" /> Launch Timer
-                            </button>
-                        </motion.div>
-                    </div>
 
+                            <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-semibold text-gray-900 dark:text-gray-100">Favorite</span>
+                                <button
+                                    onClick={handleFavorite}
+                                    disabled={isLoadingAction}
+                                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isFavorited
+                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    {isLoadingAction ? (
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    ) : isFavorited ? (
+                                        'Favorited'
+                                    ) : (
+                                        'Add to Favorites'
+                                    )}
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-semibold text-gray-900 dark:text-gray-100">Report</span>
+                                <button
+                                    onClick={handleReport}
+                                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-red-50 dark:bg-red-900/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/40 transition-all"
+                                >
+                                    <Flag className="w-4 h-4 inline mr-1" /> Report
+                                </button>
+                            </div>
+
+                            {recipe.isPremium && (
+                                <div className="py-2">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <span className="font-semibold text-gray-900 dark:text-gray-100">Price</span>
+                                        <span className="text-xl font-bold text-orange-500">
+                                            ${(recipe.price || 4.99).toFixed(2)}
+                                        </span>
+                                    </div>
+                                    {isPurchased ? (
+                                        <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                                            <CheckCircle className="w-5 h-5" />
+                                            <span className="font-semibold">Purchased</span>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={handlePurchase}
+                                            className="w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <ShoppingCart className="w-4 h-4" /> Purchase Now
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {!recipe.isPremium && (
+                                <div className="py-2 text-sm text-gray-500 dark:text-gray-400">
+                                    This recipe is free to view.
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            {/* Interactive Functional Timer Overlay Panel Modal */}
             <AnimatePresence>
-                {activeTimer && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center px-4">
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setActiveTimer(false)} />
-                        
-                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative z-10 w-full max-w-sm bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-2xl text-center space-y-6">
-                            <button onClick={() => setActiveTimer(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X className="w-4 h-4" /></button>
-                            
-                            <div>
-                                <h3 className="font-bold text-gray-900 dark:text-gray-100 text-lg">Kitchen Counter</h3>
-                                <p className="text-xs text-gray-400 mt-0.5">{recipe.title}</p>
-                            </div>
-
-                            <div className="text-4xl font-black tracking-widest bg-gray-50 dark:bg-gray-800/50 py-4 rounded-xl text-orange-500 font-mono">
-                                {formatTimer(secondsLeft)}
-                            </div>
-
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => setTimerRunning(!timerRunning)} 
-                                    className={`flex-1 py-2.5 text-white font-bold text-sm rounded-xl transition-all ${timerRunning ? 'bg-amber-500 hover:bg-amber-600' : 'bg-orange-500 hover:bg-orange-600'}`}
-                                >
-                                    {timerRunning ? 'Pause' : 'Start Cooking'}
-                                </button>
-                                <button 
-                                    onClick={() => { setTimerRunning(false); setSecondsLeft((recipe.cookTime || 15) * 60); }} 
-                                    className="px-3 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-xl transition-all"
-                                >
-                                    <RefreshCcw className="w-4 h-4 text-gray-500" />
-                                </button>
-                            </div>
-                        </motion.div>
-                    </motion.div>
+                {showPurchaseModal && (
+                    <PurchaseModal recipe={recipe} onClose={() => setShowPurchaseModal(false)} />
+                )}
+                {showReportModal && (
+                    <ReportModal recipeId={recipe._id} onClose={() => setShowReportModal(false)} />
                 )}
             </AnimatePresence>
-
         </div>
     );
 }

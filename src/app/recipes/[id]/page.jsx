@@ -1,35 +1,37 @@
-import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-import { auth } from '@/lib/auth';
+import { Suspense } from 'react';
+import { notFound } from 'next/navigation';
 import RecipeDetailsClient from './RecipeDetailsClient';
 
-export async function generateMetadata({ params }) {
-    const { id } = await params;
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/recipes/${id}`);
-    if (!res.ok) return { title: 'Recipe Details | RecipeHub' };
-    const recipe = await res.json();
-    return { title: `${recipe.title} Recipe | RecipeHub` };
+const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
+
+async function getRecipe(id) {
+    const res = await fetch(`${BASE_URL}/api/recipes/${id}`, {
+        cache: 'no-store',
+    });
+
+    if (!res.ok) {
+        if (res.status === 404) return null;
+        throw new Error('Failed to fetch recipe');
+    }
+
+    return res.json();
 }
 
 export default async function RecipeDetailsPage({ params }) {
     const { id } = await params;
+    const recipe = await getRecipe(id);
 
-    // Optional user authentication fallback setup
-    const session = await auth.api.getSession({
-        headers: await headers()
-    });
-    if (!session) {
-        redirect(`/auth/signin?redirect=/recipes/${id}`);
-    }
+    if (!recipe) notFound();
 
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/recipes/${id}`, {
-        cache: 'no-store'
-    });
-
-    if (!res.ok) return notFound();
-
-    const recipe = await res.json();
-    if (!recipe) return notFound();
-
-    return <RecipeDetailsClient recipe={recipe} />;
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center">
+                    <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+            }
+        >
+            <RecipeDetailsClient recipe={recipe} />
+        </Suspense>
+    );
 }
