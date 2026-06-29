@@ -36,6 +36,8 @@ export default async function PaymentSuccessPage({ searchParams }) {
     // 3. Confirm purchase with backend (save to database)
     if (stripeSession && stripeSession.payment_status === 'paid') {
         const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000';
+        console.log('🔵 SERVER_URL:', SERVER_URL);
+        console.log('🔵 Calling confirm-purchase at:', `${SERVER_URL}/api/payments/confirm-purchase`);
         try {
             const confirmRes = await fetch(`${SERVER_URL}/api/payments/confirm-purchase`, {
                 method: 'POST',
