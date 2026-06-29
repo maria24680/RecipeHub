@@ -20,6 +20,8 @@ import {
   TrendingUp,
   Calendar,
   FileText,
+  Crown,
+  UtensilsCrossed,
 } from "lucide-react";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000').replace(/\/$/, '');
