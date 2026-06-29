@@ -11,7 +11,7 @@ export default async function PaymentSuccessPage({ searchParams }) {
 
     // 1. Get authenticated user
     const authSession = await auth.api.getSession({ headers: await headers() });
-    if (!authSession?.user) redirect('/login');
+    if (!authSession?.user) redirect('/auth/login');
 
     // 2. Retrieve Stripe session
     let stripeSession;
@@ -30,12 +30,16 @@ export default async function PaymentSuccessPage({ searchParams }) {
         recipeId = metadata.recipeId;
     } catch (err) {
         console.error('Failed to retrieve Stripe session:', err);
-        // Still show the page but with limited info
     }
 
-    // 3. Confirm purchase with backend (save to database)
+    // 3. Confirm purchase with backend
     if (stripeSession && stripeSession.payment_status === 'paid') {
-        const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000';
+        // Use SERVER_URL (no NEXT_PUBLIC) for server-side — works on Vercel
+        const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL
+            || 'http://localhost:8000';
+
+        console.log('🔵 Calling confirm-purchase at:', `${SERVER_URL}/api/payments/confirm-purchase`);
+
         try {
             const confirmRes = await fetch(`${SERVER_URL}/api/payments/confirm-purchase`, {
                 method: 'POST',
@@ -45,12 +49,14 @@ export default async function PaymentSuccessPage({ searchParams }) {
                 },
                 body: JSON.stringify({ sessionId: session_id }),
             });
+
             if (confirmRes.ok) {
                 purchaseSaved = true;
                 console.log('✅ Purchase confirmed');
             } else {
-                confirmError = await confirmRes.text();
-                console.error('❌ Confirm failed:', confirmError);
+                const errText = await confirmRes.text();
+                confirmError = errText;
+                console.error('❌ Confirm failed status:', confirmRes.status, 'body:', errText);
             }
         } catch (err) {
             console.error('❌ Error confirming:', err);
@@ -105,7 +111,6 @@ export default async function PaymentSuccessPage({ searchParams }) {
                     </div>
                 </div>
 
-                {/* ── Confirmation status ── */}
                 {purchaseSaved ? (
                     <p className="text-xs text-green-600 dark:text-green-400 mb-4">
                         ✅ Purchase recorded successfully
@@ -133,7 +138,6 @@ export default async function PaymentSuccessPage({ searchParams }) {
                         </Link>
                     ) : (
                         <Link
-                            // eslint-disable-next-line react-hooks/purity
                             href={`/recipes/${recipeId}?purchased=${purchaseSaved ? 'true' : 'false'}&_t=${Date.now()}`}
                             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all"
                         >
