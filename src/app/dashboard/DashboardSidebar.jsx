@@ -25,6 +25,7 @@ import {
   Star,
   Crown,
   Sparkles,
+  FileText,
 } from "lucide-react";
 
 const BASE_URL = (process.env.NEXT_PUBLIC_SERVER_URL || "http://localhost:8000").replace(/\/$/, "");
@@ -64,6 +65,7 @@ const NAV_LINKS = {
     { label: "Manage Recipes", href: "/dashboard/admin/recipes", icon: UtensilsCrossed },
     { label: "Manage Users", href: "/dashboard/admin/users", icon: Users },
     { label: "Reported Items", href: "/dashboard/admin/reports", icon: AlertTriangle },
+    { label: "Transactions", href: "/dashboard/admin/transactions", icon: FileText },
   ],
 };
 
@@ -81,7 +83,9 @@ export default function DashboardSidebar({ user: serverUser }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  const user = serverUser || session?.user;
+  // Merge serverUser with session user (prefer serverUser for isPremium)
+  const sessionUser = session?.user;
+  const user = serverUser ? { ...sessionUser, ...serverUser } : sessionUser;
   const role = user?.role || "user";
   const links = NAV_LINKS[role] || NAV_LINKS.user;
   const roleConfig = ROLE_CONFIG[role] || ROLE_CONFIG.user;
@@ -214,7 +218,7 @@ export default function DashboardSidebar({ user: serverUser }) {
       {/* ── Navigation ── */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
         {links.map((link) => {
-          const isActive = pathname === link.href;
+          const isActive = pathname === link.href || pathname?.startsWith(link.href + '/');
           const Icon = link.icon;
 
           return (
