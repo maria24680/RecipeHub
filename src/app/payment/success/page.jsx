@@ -233,6 +233,7 @@ export default function PaymentSuccessPage({ searchParams }) {
                                 </Link>
                             ) : (
                                 <Link
+                                    // eslint-disable-next-line react-hooks/purity
                                     href={`/recipes/${details.recipeId}?purchased=true&_t=${Date.now()}`}
                                     className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold text-sm shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 transition-all"
                                 >
@@ -262,7 +263,7 @@ export default function PaymentSuccessPage({ searchParams }) {
                             Something Went Wrong
                         </h1>
                         <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                            We couldn't confirm your payment. Please check your email for a receipt or contact support.
+                            We couldn&apos;t confirm your payment. Please check your email for a receipt or contact support.
                         </p>
 
                         <div className="space-y-3">
