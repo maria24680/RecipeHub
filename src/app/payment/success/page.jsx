@@ -35,9 +35,7 @@ export default async function PaymentSuccessPage({ searchParams }) {
 
     // 3. Confirm purchase with backend (save to database)
     if (stripeSession && stripeSession.payment_status === 'paid') {
-        const SERVER_URL = 'https://recipe-hub-server-ecru.vercel.app/';
-        console.log('🔵 SERVER_URL:', SERVER_URL);
-        console.log('🔵 Calling confirm-purchase at:', `${SERVER_URL}/api/payments/confirm-purchase`);
+        const SERVER_URL = const SERVER_URL = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:8000';
         try {
             const confirmRes = await fetch(`${SERVER_URL}/api/payments/confirm-purchase`, {
                 method: 'POST',
