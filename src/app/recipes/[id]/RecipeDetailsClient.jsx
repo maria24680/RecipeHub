@@ -70,7 +70,8 @@ function PurchaseModal({ recipe, onClose }) {
             } else {
                 toast.error(data.error || 'Payment initiation failed');
             }
-        } catch {
+        } catch (err) {
+            console.error('Purchase error:', err);
             toast.error('Something went wrong');
         } finally {
             setIsLoading(false);
@@ -169,7 +170,8 @@ function ReportModal({ recipeId, onClose }) {
                 const data = await res.json();
                 toast.error(data.message || 'Failed to submit report');
             }
-        } catch {
+        } catch (err) {
+            console.error('Report error:', err);
             toast.error('Something went wrong');
         } finally {
             setIsLoading(false);
@@ -378,7 +380,8 @@ export default function RecipeDetailsClient({ recipe }) {
             } else {
                 toast.error(data.message || 'Failed to like');
             }
-        } catch {
+        } catch (err) {
+            console.error('Like error:', err);
             toast.error('Something went wrong');
         } finally {
             setIsLoadingAction(false);
@@ -421,7 +424,8 @@ export default function RecipeDetailsClient({ recipe }) {
             } else {
                 toast.error(data.message || 'Failed to update favorites');
             }
-        } catch {
+        } catch (err) {
+            console.error('Favorite error:', err);
             toast.error('Something went wrong');
         } finally {
             setIsLoadingAction(false);
@@ -507,6 +511,7 @@ export default function RecipeDetailsClient({ recipe }) {
                             </div>
                         </div>
 
+                        {/* ── Ingredients ── */}
                         <div className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Ingredients</h2>
                             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -519,6 +524,7 @@ export default function RecipeDetailsClient({ recipe }) {
                             </ul>
                         </div>
 
+                        {/* ── Instructions ── */}
                         <div className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4">Instructions</h2>
                             <ol className="space-y-4">
@@ -532,11 +538,29 @@ export default function RecipeDetailsClient({ recipe }) {
                                 ))}
                             </ol>
                         </div>
+
+                        {/* ── Additional Info (Likes, etc.) ── */}
+                        <div className="flex items-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="flex items-center gap-1.5">
+                                <Heart className={`w-4 h-4 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+                                <span className="font-semibold text-gray-900 dark:text-white">{likesCount}</span>
+                                <span>likes</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <User className="w-4 h-4" />
+                                <span>By {recipe.authorName || 'Anonymous'}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                                <Clock className="w-4 h-4" />
+                                <span>{recipe.preparationTime || 30} mins</span>
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Right sidebar */}
+                    {/* ── Right Sidebar ── */}
                     <div className="space-y-6">
                         <div className="bg-white dark:bg-[#1a1d24] rounded-2xl p-6 border border-gray-100 dark:border-gray-800 shadow-sm sticky top-24">
+                            {/* Likes */}
                             <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                                 <div className="flex items-center gap-2">
                                     <Heart className="w-5 h-5 text-red-500" />
@@ -547,14 +571,15 @@ export default function RecipeDetailsClient({ recipe }) {
                                     onClick={handleLike}
                                     disabled={isLoadingAction}
                                     className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isLiked
-                                        ? 'bg-red-500 text-white hover:bg-red-600'
-                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                            ? 'bg-red-500 text-white hover:bg-red-600'
+                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                                         }`}
                                 >
                                     {isLoadingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : isLiked ? 'Liked' : 'Like'}
                                 </button>
                             </div>
 
+                            {/* Favorite */}
                             <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                                 <span className="font-semibold text-gray-900 dark:text-gray-100">Favorite</span>
                                 {isFavoritedLoading ? (
@@ -564,8 +589,8 @@ export default function RecipeDetailsClient({ recipe }) {
                                         onClick={handleFavorite}
                                         disabled={isLoadingAction}
                                         className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${isFavorited
-                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                                                ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                                             }`}
                                     >
                                         {isLoadingAction ? <Loader2 className="w-4 h-4 animate-spin" /> : isFavorited ? 'Favorited' : 'Add to Favorites'}
@@ -573,6 +598,7 @@ export default function RecipeDetailsClient({ recipe }) {
                                 )}
                             </div>
 
+                            {/* Report */}
                             <div className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-800">
                                 <span className="font-semibold text-gray-900 dark:text-gray-100">Report</span>
                                 <button
@@ -583,6 +609,7 @@ export default function RecipeDetailsClient({ recipe }) {
                                 </button>
                             </div>
 
+                            {/* Purchase (if premium) */}
                             {recipe.isPremium && (
                                 <div className="py-2">
                                     <div className="flex items-center justify-between mb-3">
